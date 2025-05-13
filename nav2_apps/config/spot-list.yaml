@@ -1,0 +1,25 @@
+move_shelf_to_ship:
+  ros__parameters:
+    move_to_spot.init_pos.x: 0.0
+    move_to_spot.init_pos.y: 0.0
+    move_to_spot.init_pos.z: 0.0
+    move_to_spot.init_pos.ox: 0.0
+    move_to_spot.init_pos.oy: 0.0
+    move_to_spot.init_pos.oz: 0.0
+    move_to_spot.init_pos.ow: 1.0
+
+    move_to_spot.turn_pt.x: 5.8
+    move_to_spot.turn_pt.y: -0.0
+    move_to_spot.turn_pt.z: 0.0
+    move_to_spot.turn_pt.ox: 0.0
+    move_to_spot.turn_pt.oy: 0.0
+    move_to_spot.turn_pt.oz: -0.707
+    move_to_spot.turn_pt.ow: 0.707
+
+    move_to_spot.ship_pt.x: 2.33
+    move_to_spot.ship_pt.y: 0.93
+    move_to_spot.ship_pt.z: 0.0
+    move_to_spot.ship_pt.ox: 0.0
+    move_to_spot.ship_pt.oy: 0.0
+    move_to_spot.ship_pt.oz: -0.707
+    move_to_spot.ship_pt.ow: 0.707
