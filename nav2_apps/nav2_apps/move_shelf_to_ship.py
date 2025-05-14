@@ -13,6 +13,7 @@ from rcl_interfaces.msg import ParameterDescriptor
 import time
 from rcl_interfaces.srv import SetParameters
 from rclpy.parameter import Parameter
+import asyncio
 
 class MoveShelfToShip(Node):
 
@@ -27,12 +28,12 @@ class MoveShelfToShip(Node):
             'navigate_to_pose'  # Nav2 default action server name
         )
         self.initial_pose_publisher_ = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
-        #self.amcl_pose_subscriber_ = self.create_subscription(
-        #    PoseWithCovarianceStamped,
-        #    '/amcl_pose',
-        #    self.amcl_pose_callback,
-        #    10,
-        #    callback_group=MutuallyExclusiveCallbackGroup())
+        self.amcl_pose_subscriber_ = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/amcl_pose',
+            self.amcl_pose_callback,
+            10,
+            callback_group=MutuallyExclusiveCallbackGroup())
         self.approach_client = self.create_client(GoToLoading, '/approach_shelf')
         self.reinit_client_ = self.create_client(Empty, '/reinitialize_global_localization')
         self.cmd_vel_publisher_ = self.create_publisher(Twist, '/diffbot_base_controller/cmd_vel_unstamped', 10)
@@ -47,6 +48,8 @@ class MoveShelfToShip(Node):
         self.oy = 0.0
         self.oz = 0.0
         self.ow = 1.0
+        self._goal_handle = None
+        self.goal_accepted = False
         # Add parameter client for dynamic footprint changes
         self.param_client = self.create_client(
             SetParameters,
@@ -62,10 +65,10 @@ class MoveShelfToShip(Node):
             value=new_footprint
         ).to_parameter_msg()]
 
-        future = self.param_client.call_async(req)
-        await future
+        future1 = self.param_client.call_async(req)
+        await future1
         
-        if future.result() is not None:
+        if future1.result() is not None:
             self.get_logger().info("Footprint updated successfully")
             return True
         else:
@@ -100,9 +103,8 @@ class MoveShelfToShip(Node):
         self.amcl_pose_x = msg.pose.pose.position.x
         self.amcl_pose_y = msg.pose.pose.position.y
         self.amcl_cov0 = msg.pose.covariance[0]
-        self.amcl_cov1 = msg.pose.covariance[1]
         self.amcl_cov6 = msg.pose.covariance[6]
-        self.amcl_cov7 = msg.pose.covariance[7]
+        self.amcl_cov35 = msg.pose.covariance[35]
 
     def is_amcl_node_active(self):
         try:
@@ -143,18 +145,25 @@ class MoveShelfToShip(Node):
             self.get_logger().info("Waiting for subscribers to connect...")
             time.sleep(1)
 
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                self.initial_pose_publisher_.publish(initial_pose_msg)
-                time.sleep(1)
-                self.get_logger().info("Initial pose published successfully.")
-                break  # Exit the loop if successful
-            except Exception as e:
-                self.get_logger().error(f"Failed to publish initial pose (attempt {attempt + 1}): {e}")
-                time.sleep(1)  # Wait before retrying
-        else:
-            self.get_logger().warn("Exceeded maximum retries to publish initial pose.")
+        for _ in range(3):
+            self.initial_pose_publisher_.publish(initial_pose_msg)
+            time.sleep(0.5)
+            
+        #max_retries = 5
+        #for attempt in range(max_retries):
+        #    try:
+        #        self.initial_pose_publisher_.publish(initial_pose_msg)
+        #        time.sleep(1)
+        #        self.get_logger().info("Initial pose published successfully.")
+        #        break  # Exit the loop if successful
+        #    except Exception as e:
+        #        self.get_logger().error(f"Failed to publish initial pose (attempt {attempt + 1}): {e}")
+        #        time.sleep(1)  # Wait before retrying
+        #else:
+        #    self.get_logger().warn("Exceeded maximum retries to publish initial pose.")
+        
+        if not self.wait_for_amcl_localization():
+            return
 
     def wait_for_amcl_localization(self, timeout_sec=5.0):
         start_time = self.get_clock().now()
@@ -165,22 +174,44 @@ class MoveShelfToShip(Node):
                 self.get_logger().warn("AMCL did not publish a pose within the timeout.")
                 return False
         self.get_logger().info("AMCL is localized.")
-        return True
+        if (self.amcl_cov0 < 0.25 and self.amcl_cov6 < 0.25 and self.amcl_cov35 < 0.25):
+            self.get_logger().info("Within all covariance requirements!")
+            return True
+        else:
+            self.get_logger().info("Outside the covariance requirements!")
+            return False
 
     def reinitialize_global_localization(self):
         self.get_logger().info("Calling /reinitialize_global_localization service...")
-        request = Empty.Request()
-        future = self.reinit_client_.call_async(request)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() is not None:
-            self.get_logger().info("Successfully called /reinitialize_global_localization")
-            return True
-        else:
-            self.get_logger().error("Failed to call /reinitialize_global_localization")
+    
+        # Wait for the service to be available before sending the request
+        if not self.reinit_client_.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error("Service /reinitialize_global_localization not available!")
             return False
 
-    def rotate_robot(self, rotation_duration=30.0, angular_velocity=0.5):
-        self.get_logger().info("Rotating robot to assist localization...")
+        request = Empty.Request()
+        future = self.reinit_client_.call_async(request)
+    
+        # Increase timeout and ensure proper spinning
+        try:
+            rclpy.spin_until_future_complete(self, future, timeout_sec=15.0)
+        except Exception as e:
+            self.get_logger().error(f"Error during spin: {e}")
+            return False
+
+        if future.done():
+            if future.result() is not None:
+                self.get_logger().info("Successfully reinitialized global localization")
+                return True
+            else:
+                self.get_logger().error("Service call failed with no result")
+                return False
+        else:
+            self.get_logger().error("Service call timed out")
+            return False
+
+    def rotate_robot(self, rotation_duration=4.0, angular_velocity=0.5):
+        self.get_logger().info(f"Rotating robot to assist localization...{angular_velocity}")
         twist_msg = Twist()
         twist_msg.angular.z = float(angular_velocity)
         start_time = self.get_clock().now()
@@ -191,19 +222,43 @@ class MoveShelfToShip(Node):
                 break
             self.cmd_vel_publisher_.publish(twist_msg)
             rclpy.spin_once(self, timeout_sec=0.1)
-            if self.amcl_pose_received_:
-                if (self.amcl_cov0 < 0.25 and self.amcl_cov1 < 0.25 and self.amcl_cov6 < 0.25):
-                    break
+            #if self.amcl_pose_received_:
+            #    if (self.amcl_cov0 < 0.25 and self.amcl_cov1 < 0.25 and self.amcl_cov6 < 0.25):
+            #        break
 
         twist_msg.angular.z = 0.0
         self.cmd_vel_publisher_.publish(twist_msg)
         self.get_logger().info("Finished rotating robot.")
 
+    def move_robot(self, duration=5.0, linear_velocity=0.5):
+        self.get_logger().info(f"Moving robot to assist localization...{linear_velocity}")
+        twist_msg = Twist()
+        twist_msg.linear.x = float(linear_velocity)
+        start_time = self.get_clock().now()
+
+        while rclpy.ok():
+            elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
+            if elapsed > duration:
+                break
+            self.cmd_vel_publisher_.publish(twist_msg)
+            rclpy.spin_once(self, timeout_sec=0.1)
+            #if self.amcl_pose_received_:
+            #    if (self.amcl_cov0 < 0.25 and self.amcl_cov1 < 0.25 and self.amcl_cov6 < 0.25):
+            #        break
+
+        twist_msg.linear.x = 0.0
+        self.cmd_vel_publisher_.publish(twist_msg)
+        self.get_logger().info("Finished moving robot.")
+
     def send_goal(self):
-        if not self._action_client.wait_for_server(timeout_sec=5.0):
+        if not self._action_client.wait_for_server(timeout_sec=10.0):
             self.get_logger().error("Action server not available!")
             return False
-        
+
+        # Cancel existing goals before sending new ones
+        if self._goal_handle:
+            self._goal_handle.cancel_goal_async()
+
         # Define goal pose (replace with your target coordinates)
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = "map"  # Must match your map frame
@@ -216,26 +271,39 @@ class MoveShelfToShip(Node):
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = goal_pose
 
+        time.sleep(5)
+
         self._send_goal_future = self._action_client.send_goal_async(
-            goal_msg, 
-            feedback_callback=self.feedback_callback
-        )
+                goal_msg, 
+                feedback_callback=self.feedback_callback)
         self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+        # Wait for the result
+        #rclpy.spin_until_future_complete(self, self._send_goal_future)
+        # Do not block here; allow the rest of the program to run
         return True
-
+ 
     def goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
+        self._goal_handle = future.result()
+        if not self._goal_handle.accepted:
             self.get_logger().error("Goal rejected!")
+            self.goal_accepted = False
             return
-
-        self.get_logger().info("Goal accepted. Navigating...")
-        self._get_result_future = goal_handle.get_result_async()
+        self.get_logger().info("Goal accepted.")
+        # Request result future and bind get_result_callback
+        self._get_result_future = self._goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
 
     def get_result_callback(self, future):
-        result = future.result().result
-        status = future.result().status
+        result = future.result()
+        if result is None:
+            self.get_logger().error("Result is None!")
+            return
+
+        # Update the goal handle
+        self._goal_handle = future.result()  # Store the goal handle
+
+        status = result.status
         status_str = self._status_to_string(status)
         self.get_logger().info(f"Navigation finished. Status: {status_str}")
     
@@ -246,7 +314,8 @@ class MoveShelfToShip(Node):
                 if self.attach_shelf():
                     # Update footprint and send second goal
                     self.get_logger().info("Updating footprint...")
-                    rclpy.get_default_context().call_soon(self.handle_footprint_update)
+                    # Schedule the async task correctly
+                    asyncio.create_task(self.handle_footprint_update())
                 else:
                     self.clean_shutdown()
             elif self.footprint_updated:
@@ -271,8 +340,9 @@ class MoveShelfToShip(Node):
 
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
-        self.get_logger().info(
-            f"Distance remaining: {feedback.distance_remaining:.2f} meters"
+        self.get_logger().debug(
+            f"Navigation Feedback:\n"
+            f"Distance: {feedback.distance_remaining:.2f}m\n"
         )
 
     def _status_to_string(self, status):
@@ -295,7 +365,7 @@ class MoveShelfToShip(Node):
         req.attach_to_shelf = True
         future = self.approach_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
-        return future.result().success
+        return future.result().complete
 
 def main(args=None):
     rclpy.init(args=args)
@@ -304,18 +374,33 @@ def main(args=None):
     action_client.find_spots('init_pos')
     action_client.set_init_pose()
 
-    #if not action_client.wait_for_amcl_localization():
-    #    action_client.rotate_robot(rotation_duration=30.0)
-    #    if not action_client.wait_for_amcl_localization():
-    #        if action_client.reinitialize_global_localization():
-    #            action_client.rotate_robot(rotation_duration=30.0)
-    #            action_client.wait_for_amcl_localization()
-    #        else:
-    #            action_client.get_logger().error("Failed to reinitialize global localization. Aborting.")
-    #            rclpy.shutdown()
-    #            return
-    action_client.find_spots('turn_pt')
+    #if action_client.reinitialize_global_localization():
+    #    time.sleep(5)
+        #action_client.rotate_robot(angular_velocity=0.5)
+        #time.sleep(1)
+        #action_client.rotate_robot(angular_velocity=-0.5)
+        #time.sleep(1)
+        #action_client.move_robot(linear_velocity=0.5)
+        #action_client.move_robot(linear_velocity=-0.5)
+        #action_client.rotate_robot(angular_velocity=-0.5)
+        #action_client.rotate_robot(angular_velocity=0.5)
 
+        #while not action_client.wait_for_amcl_localization():
+        #    action_client.rotate_robot(angular_velocity=0.5)
+        #    action_client.rotate_robot(angular_velocity=-0.5)
+        #    action_client.move_robot(linear_velocity=0.5)
+        #    action_client.move_robot(linear_velocity=-0.5)
+        #    action_client.rotate_robot(angular_velocity=-0.5)
+        #    action_client.rotate_robot(angular_velocity=0.5)
+                
+            # action_client.wait_for_amcl_localization()
+            #else:
+            #    action_client.get_logger().error("Failed to reinitialize global localization. Aborting.")
+            #    rclpy.shutdown()
+            #    return
+    
+    action_client.find_spots('turn_pt')
+    
     # Send goal and spin
     if action_client.send_goal():
         rclpy.spin(action_client)
