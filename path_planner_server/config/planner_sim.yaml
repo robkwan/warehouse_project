@@ -5,7 +5,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
+      tolerance: 0.7 #0.5
       use_astar: false
       allow_unknown: true
 global_costmap:
@@ -21,6 +21,7 @@ global_costmap:
       resolution: 0.01 #0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      filters: ["keepout_filter"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -43,3 +44,11 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/costmap_filter_info"
+        # Path to the keepout mask file 
+        #keepout_mask_file: "/home/user/ros2_ws/src/warehouse_project/map_server/config/pure_keepout_sim_ascii.pgm"
+        # Optional: specify the resolution of the mask
+        #resolution: 0.01  # Example resolution in meters per pixel

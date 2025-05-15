@@ -1,7 +1,7 @@
 controller_server:
   ros__parameters:
     use_sim_time: True
-    controller_frequency: 5.0
+    controller_frequency: 10.0 #5.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
@@ -76,6 +76,7 @@ local_costmap:
       #robot_radius: 0.15
       footprint: '[ [0.2575, 0.169], [0.2575, -0.169], [-0.2575, -0.169], [-0.2575, 0.169] ]'
       plugins: ["voxel_layer", "inflation_layer"]
+      filters: ["keepout_filter"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.5 #3.0
@@ -103,4 +104,12 @@ local_costmap:
       static_layer:
         map_subscribe_transient_local: True
       always_send_full_costmap: True
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/costmap_filter_info"
+        # Path to the keepout mask file 
+        #keepout_mask_file: "/home/user/ros2_ws/src/warehouse_project/map_server/config/pure_keepout_sim_ascii.pgm"
+        # Optional: specify the resolution of the mask
+        #resolution: 0.01  # Example resolution in meters per pixel
         

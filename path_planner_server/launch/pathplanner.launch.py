@@ -24,6 +24,8 @@ def generate_launch_description():
     # File selection logic
     config_dir = os.path.join(get_package_share_directory('path_planner_server'), 'config')
 
+    filters_yaml = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters.yaml')
+
     # Conditional planner server nodes
     planner_server_node_sim = Node(
         package='nav2_planner',
@@ -100,6 +102,24 @@ def generate_launch_description():
             condition=UnlessCondition(use_sim_time)
         )
 
+    filter_mask_server_node = Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='filter_mask_server',
+            output='screen',
+            emulate_tty=True,
+            parameters=[filters_yaml]
+        )
+
+    costmap_filter_info_server_node = Node(
+            package='nav2_map_server',
+            executable='costmap_filter_info_server',
+            name='costmap_filter_info_server',
+            output='screen',
+            emulate_tty=True,
+            parameters=[filters_yaml]
+        )
+
     lifecycle_manager_node2 = Node(
             package='nav2_lifecycle_manager',
             executable='lifecycle_manager',
@@ -107,7 +127,9 @@ def generate_launch_description():
             output='screen',
             parameters=[{'use_sim_time': use_sim_time},
                         {'autostart': True},
-                        {'node_names': ['planner_server', 'controller_server', 'bt_navigator', 'recoveries_server']}])    
+                        {'node_names': ['planner_server', 'controller_server', 'bt_navigator', 'recoveries_server',
+                                        'filter_mask_server', 'costmap_filter_info_server'
+                                        ]}])    
 
     delay_duration = 3.0  # 3 seconds delay
     delay_action2 = TimerAction(
@@ -133,6 +155,8 @@ def generate_launch_description():
              bt_navigator_node_real,
              recoveries_server_node_sim,
              recoveries_server_node_real,
+             filter_mask_server_node,
+             costmap_filter_info_server_node, 
              lifecycle_manager_node2,
              delay_action2
         ]
