@@ -449,9 +449,12 @@ def main(args=None):
     rclpy.init(args=args)
     action_client = MoveShelfToShip()
 
+    # Approach #1 to find initial position
     #action_client.find_spots('init_pos')
     #action_client.set_init_pose()
     #action_client.wait_for_amcl_localization()
+
+    # Approach #2 to find initial position
 
     if action_client.reinitialize_global_localization():
         while not action_client.wait_for_amcl_localization():
