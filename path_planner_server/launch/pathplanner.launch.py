@@ -131,6 +131,14 @@ def generate_launch_description():
                                         'filter_mask_server', 'costmap_filter_info_server'
                                         ]}])    
 
+    attach_shelf_node = Node(
+        package='attach_shelf',
+        executable='approach_service_server',
+        name='approach_service_server',
+        output='screen'
+    )
+
+
     delay_duration = 3.0  # 3 seconds delay
     delay_action2 = TimerAction(
         period=delay_duration,
@@ -158,6 +166,7 @@ def generate_launch_description():
              filter_mask_server_node,
              costmap_filter_info_server_node, 
              lifecycle_manager_node2,
+             attach_shelf_node,
              delay_action2
         ]
     )

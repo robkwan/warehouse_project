@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
@@ -29,8 +31,8 @@ class MoveShelfToShip(Node):
         )
 
         # Check if 'use_sim_time' is True or False
-        self.use_sim_time = self.get_parameter('use_sim_time').value
-        self.get_logger().info(f"use_sim_time is set to: {self.use_sim_time}")
+        #self.use_sim_time = self.get_parameter('use_sim_time').value
+        #self.get_logger().info(f"use_sim_time is set to: {self.use_sim_time}")
 
         self.initial_pose_publisher_ = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
         self.amcl_pose_subscriber_ = self.create_subscription(
@@ -41,12 +43,27 @@ class MoveShelfToShip(Node):
             callback_group=MutuallyExclusiveCallbackGroup())
         self.approach_client = self.create_client(GoToLoading, '/approach_shelf')
         self.reinit_client_ = self.create_client(Empty, '/reinitialize_global_localization')
-        if (self.use_sim_time):
-            self.cmd_vel_publisher_ = self.create_publisher(Twist, '/diffbot_base_controller/cmd_vel_unstamped', 10)
-        else:
-            self.cmd_vel_publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
+        #if (self.use_sim_time):
+        #self.cmd_vel_publisher_ = self.create_publisher(Twist, '/diffbot_base_controller/cmd_vel_unstamped', 10)
+        #else:
+        self.cmd_vel_publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        
+        # Hardcoded spot parameters (replaces spot-list.yaml)
+        self.spot_params = {
+            'init_pos': {
+                'x': 0.0, 'y': 0.0, 'z': 0.0,
+                'ox': 0.0, 'oy': 0.0, 'oz': 0.0, 'ow': 1.0
+            },
+            'turn_pt': {
+                'x': 5.8, 'y': -0.0, 'z': 0.0,
+                'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
+            },
+            'ship_pt': {
+                'x': 2.1, 'y': 0.0, 'z': 0.0,
+                'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
+            }
+        }
+
         self.amcl_pose_received_ = False
         self.goal_reached_ = False
         self.initial_amcl_pose_ = None
@@ -150,27 +167,21 @@ class MoveShelfToShip(Node):
 
 
     def find_spots(self, name):
-        param_prefix = f'move_to_spot.{name}'
-        param_names = ['x', 'y', 'z', 'ox', 'oy', 'oz', 'ow']
-        descriptor = ParameterDescriptor(dynamic_typing=True)
+        if name not in self.spot_params:
+            self.get_logger().error(f"Spot '{name}' not defined!")
+            return
 
-        for param in param_names:
-            full_name = f'{param_prefix}.{param}'
-            if not self.has_parameter(full_name):
-                self.declare_parameter(full_name, 0.0, descriptor=descriptor)  # Use 0.0 instead of None
-
-        # Retrieve parameters
-        self.posx = self.get_parameter(f'{param_prefix}.x').value
-        self.posy = self.get_parameter(f'{param_prefix}.y').value
-        self.posz = self.get_parameter(f'{param_prefix}.z').value
-        self.ox = self.get_parameter(f'{param_prefix}.ox').value
-        self.oy = self.get_parameter(f'{param_prefix}.oy').value
-        self.oz = self.get_parameter(f'{param_prefix}.oz').value
-        self.ow = self.get_parameter(f'{param_prefix}.ow').value
+        spot = self.spot_params[name]
+        self.posx = spot['x']
+        self.posy = spot['y']
+        self.posz = spot['z']
+        self.ox = spot['ox']
+        self.oy = spot['oy']
+        self.oz = spot['oz']
+        self.ow = spot['ow']
 
         self.get_logger().info(f"Going to spot '{name}': x={self.posx}, y={self.posy}, oz={self.oz}")
-
-
+        
     def amcl_pose_callback(self, msg):
         self.amcl_pose_received_ = True
         self.get_logger().info(f"Received pose from AMCL: x={msg.pose.pose.position.x:.2f}, y={msg.pose.pose.position.y:.2f}")
@@ -508,5 +519,11 @@ def main(args=None):
 
     #rclpy.spin(action_client)
     rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+
+
 
  
