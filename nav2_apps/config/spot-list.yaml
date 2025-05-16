@@ -16,8 +16,8 @@ move_shelf_to_ship:
     move_to_spot.turn_pt.oz: -0.707
     move_to_spot.turn_pt.ow: 0.707
 
-    move_to_spot.ship_pt.x: 2.33
-    move_to_spot.ship_pt.y: 0.93
+    move_to_spot.ship_pt.x: 2.1
+    move_to_spot.ship_pt.y: 0.0
     move_to_spot.ship_pt.z: 0.0
     move_to_spot.ship_pt.ox: 0.0
     move_to_spot.ship_pt.oy: 0.0

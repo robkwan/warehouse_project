@@ -8,6 +8,8 @@ behavior_server:
       plugin: "nav2_behaviors/Spin"
     backup:
       plugin: "nav2_behaviors/BackUp"
+      backup_duration: 2.5  # Duration to back up in seconds
+      backup_distance: 0.5   # Distance to back up in meters
     wait:
       plugin: "nav2_behaviors/Wait"
     global_frame: odom

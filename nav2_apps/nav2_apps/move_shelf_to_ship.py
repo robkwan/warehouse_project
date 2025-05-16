@@ -13,7 +13,7 @@ from rcl_interfaces.msg import ParameterDescriptor
 import time
 from rcl_interfaces.srv import SetParameters
 from rclpy.parameter import Parameter
-import asyncio
+from std_msgs.msg import String  # Added import
 
 class MoveShelfToShip(Node):
 
@@ -51,29 +51,94 @@ class MoveShelfToShip(Node):
         self._goal_handle = None
         self.goal_accepted = False
         # Add parameter client for dynamic footprint changes
-        self.param_client = self.create_client(
+        self.gparam_client = self.create_client(
             SetParameters,
             '/global_costmap/global_costmap/set_parameters'
         )
+        self.lparam_client = self.create_client(
+            SetParameters,
+            '/local_costmap/local_costmap/set_parameters'
+        )
+        # Publisher for /elevator_down
+        self.elevator_pub_ = self.create_publisher(String, '/elevator_down', 10)
 
-    async def update_footprint(self):
-        new_footprint = "[ [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5] ]"  # Your new footprint coordinates
-        
+    def update_footprint(self):
+        new_footprint = "[ [0.45, 0.45], [0.45, -0.45], [-0.45, -0.45], [-0.45, 0.45] ]"
+        new_inflation_radius = 1.05  # Set your desired value (default is 0.55)
+
         req = SetParameters.Request()
-        req.parameters = [Parameter(
-            name="footprint",
-            value=new_footprint
-        ).to_parameter_msg()]
+        req.parameters = [
+        Parameter(name="footprint", value=new_footprint).to_parameter_msg(),
+        #Parameter(name="inflation_layer.inflation_radius", value=new_inflation_radius).to_parameter_msg()
+        ]
 
-        future1 = self.param_client.call_async(req)
-        await future1
-        
-        if future1.result() is not None:
-            self.get_logger().info("Footprint updated successfully")
+        future = self.gparam_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)  # Block until done
+    
+        if future.result() is not None:
+            self.get_logger().info("G Footprint updated successfully")
+            #return True
+        else:
+            self.get_logger().error("Failed to update G footprint")
+            return False
+
+        req = SetParameters.Request()
+        req.parameters = [
+        Parameter(name="footprint", value=new_footprint).to_parameter_msg(),
+        #Parameter(name="inflation_layer.inflation_radius", value=new_inflation_radius).to_parameter_msg()
+        ]
+
+        future = self.lparam_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)  # Block until done
+    
+        if future.result() is not None:
+            self.get_logger().info("L Footprint updated successfully")
+            
+            # Reset costmaps
+            #clear_global = self.create_client(Empty, '/global_costmap/clear_entirely_global_costmap')
+            #clear_local = self.create_client(Empty, '/local_costmap/clear_entirely_local_costmap')
+            #clear_global.call_async(Empty.Request())
+            #clear_local.call_async(Empty.Request())
+            #time.sleep(1.0)  # Allow costmaps to regenerate
+
             return True
         else:
-            self.get_logger().error("Failed to update footprint")
+            self.get_logger().error("Failed to update L footprint")
             return False
+
+    def return_footprint(self):
+        orig_footprint = "[ [0.2575, 0.169], [0.2575, -0.169], [-0.2575, -0.169], [-0.2575, 0.169] ]"
+
+        req = SetParameters.Request()
+        req.parameters = [
+        Parameter(name="footprint", value=orig_footprint).to_parameter_msg(),
+        ]
+
+        future = self.gparam_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)  # Block until done
+    
+        if future.result() is not None:
+            self.get_logger().info("G Footprint returned successfully")
+            #return True
+        else:
+            self.get_logger().error("Failed to return G footprint")
+            return False
+
+        req = SetParameters.Request()
+        req.parameters = [
+        Parameter(name="footprint", value=orig_footprint).to_parameter_msg(),
+        ]
+
+        future = self.lparam_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)  # Block until done
+    
+        if future.result() is not None:
+            self.get_logger().info("L Footprint returned successfully")
+            return True
+        else:
+            self.get_logger().error("Failed to return L footprint")
+            return False
+
 
     def find_spots(self, name):
         param_prefix = f'move_to_spot.{name}'
@@ -255,9 +320,11 @@ class MoveShelfToShip(Node):
             self.get_logger().error("Action server not available!")
             return False
 
+        self.goal_reached_ = False
+
         # Cancel existing goals before sending new ones
-        if self._goal_handle:
-            self._goal_handle.cancel_goal_async()
+        #if self._goal_handle:
+        #    self._goal_handle.cancel_goal_async()
 
         # Define goal pose (replace with your target coordinates)
         goal_pose = PoseStamped()
@@ -278,7 +345,7 @@ class MoveShelfToShip(Node):
                 feedback_callback=self.feedback_callback)
         self._send_goal_future.add_done_callback(self.goal_response_callback)
 
-        # Wait for the result
+        # Wait for the result - Not working below!!!
         #rclpy.spin_until_future_complete(self, self._send_goal_future)
         # Do not block here; allow the rest of the program to run
         return True
@@ -311,28 +378,34 @@ class MoveShelfToShip(Node):
             if not self.goal_reached_:
                 # First goal completion (attach shelf)
                 self.goal_reached_ = True
-                if self.attach_shelf():
-                    # Update footprint and send second goal
-                    self.get_logger().info("Updating footprint...")
-                    # Schedule the async task correctly
-                    asyncio.create_task(self.handle_footprint_update())
-                else:
-                    self.clean_shutdown()
-            elif self.footprint_updated:
-                # Second goal completion
-                self.get_logger().info("All tasks completed!")
-                self.clean_shutdown()
+                time.sleep(1)
         else:
-            self.clean_shutdown()
-
-    async def handle_footprint_update(self):
-        success = await self.update_footprint()
+            self.goal_reached_ = False
+            self.get_logger().info("Goal status does not return SUCCEEDED.")
+ 
+    def handle_footprint_update(self):  
+        success = self.update_footprint()
+        #success = True  # Testing purpose only now!!!
         if success:
             self.footprint_updated = True
-            self.find_spots('ship_pt')  # Load second goal params
-            self.send_goal()
+            self.move_robot(linear_velocity=-0.21)
+            self.rotate_robot(angular_velocity=-0.393)
         else:
-            self.clean_shutdown()
+            self.get_logger().info("Handle footprint update Failed.")
+
+    def handle_cart_dropoff(self):  
+        self.move_robot(linear_velocity=-0.41)
+        elevator_msg = String()
+        elevator_msg.data = ""  # Empty message?!
+        self.elevator_pub_.publish(elevator_msg)
+        self.get_logger().info("Published to /elevator_down")
+        time.sleep(0.5)  # Ensure message is sent
+        success = self.return_footprint()
+        if success:
+            self.footprint_updated = False
+            self.move_robot(linear_velocity=0.41)
+        else:
+            self.get_logger().info("Handle footprint back to original Failed.")
 
     def clean_shutdown(self):
         self.destroy_node()
@@ -356,13 +429,18 @@ class MoveShelfToShip(Node):
         }.get(status, "Invalid Status")
     
     def attach_shelf(self):
+        self.get_logger().info("attach_shelf() In.")
+        
         if not self.goal_reached_:
-            self.get_logger().warn("attach_shelf called before goal was reached!")
+            self.get_logger().info("attach_shelf called before goal was reached!")
             return
+
         while not self.approach_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn("Waiting for /approach_shelf service...")
+            self.get_logger().info("Waiting for /approach_shelf service...")
+        
         req = GoToLoading.Request()
         req.attach_to_shelf = True
+        
         future = self.approach_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
         return future.result().complete
@@ -371,40 +449,52 @@ def main(args=None):
     rclpy.init(args=args)
     action_client = MoveShelfToShip()
 
-    action_client.find_spots('init_pos')
-    action_client.set_init_pose()
+    #action_client.find_spots('init_pos')
+    #action_client.set_init_pose()
+    #action_client.wait_for_amcl_localization()
 
-    #if action_client.reinitialize_global_localization():
-    #    time.sleep(5)
-        #action_client.rotate_robot(angular_velocity=0.5)
-        #time.sleep(1)
-        #action_client.rotate_robot(angular_velocity=-0.5)
-        #time.sleep(1)
-        #action_client.move_robot(linear_velocity=0.5)
-        #action_client.move_robot(linear_velocity=-0.5)
-        #action_client.rotate_robot(angular_velocity=-0.5)
-        #action_client.rotate_robot(angular_velocity=0.5)
-
-        #while not action_client.wait_for_amcl_localization():
-        #    action_client.rotate_robot(angular_velocity=0.5)
-        #    action_client.rotate_robot(angular_velocity=-0.5)
-        #    action_client.move_robot(linear_velocity=0.5)
-        #    action_client.move_robot(linear_velocity=-0.5)
-        #    action_client.rotate_robot(angular_velocity=-0.5)
-        #    action_client.rotate_robot(angular_velocity=0.5)
-                
-            # action_client.wait_for_amcl_localization()
-            #else:
-            #    action_client.get_logger().error("Failed to reinitialize global localization. Aborting.")
-            #    rclpy.shutdown()
-            #    return
+    if action_client.reinitialize_global_localization():
+        while not action_client.wait_for_amcl_localization():
+            action_client.rotate_robot(angular_velocity=0.5)
+            action_client.rotate_robot(angular_velocity=-0.5)
+            action_client.wait_for_amcl_localization()
+            action_client.move_robot(linear_velocity=0.5)
+            action_client.move_robot(linear_velocity=-0.5)
+            action_client.rotate_robot(angular_velocity=-0.5)
+            action_client.rotate_robot(angular_velocity=0.5)
     
     action_client.find_spots('turn_pt')
-    
-    # Send goal and spin
-    if action_client.send_goal():
-        rclpy.spin(action_client)
-    else:
-        action_client.destroy_node()
-        rclpy.shutdown()
+    action_client.send_goal()
 
+    while rclpy.ok() and not action_client.goal_reached_:
+        # Process ROS events to update goal status
+        rclpy.spin_once(action_client, timeout_sec=0.1)
+
+    action_client.attach_shelf()
+
+    action_client.handle_footprint_update()
+
+    action_client.find_spots('ship_pt')
+    action_client.send_goal()
+
+    while rclpy.ok() and not action_client.goal_reached_:
+        # Process ROS events to update goal status
+        rclpy.spin_once(action_client, timeout_sec=0.1)
+
+    action_client.handle_cart_dropoff()
+
+    action_client.find_spots('init_pt')
+    action_client.send_goal()
+
+    while rclpy.ok() and not action_client.goal_reached_:
+        # Process ROS events to update goal status
+        rclpy.spin_once(action_client, timeout_sec=0.1)
+
+    action_client.get_logger().info("All Tasks Completed!")
+
+    #action_client.rotate_robot(angular_velocity=-0.786)
+
+    #rclpy.spin(action_client)
+    rclpy.shutdown()
+
+ 

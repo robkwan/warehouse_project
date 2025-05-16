@@ -29,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: LaserScan
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -103,8 +103,6 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        map:
-          Value: true
         odom:
           Value: true
         robot_base_docking_contact_link:
@@ -133,25 +131,7 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          odom:
-            robot_base_footprint:
-              robot_base_link:
-                robot_evelator_base_link:
-                  {}
-                robot_front_cover_link:
-                  robot_base_docking_contact_link:
-                    {}
-                robot_front_laser_base_link:
-                  {}
-                robot_omni_backwheel_link:
-                  {}
-                robot_omni_front_leftwheel_link:
-                  {}
-                robot_omni_front_rightwheel_link:
-                  {}
-              robot_top_cover_link:
-                {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -448,16 +428,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 15.565619468688965
+      Distance: 11.210765838623047
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 3.093841791152954
+        Y: -0.11356090009212494
+        Z: -0.39189425110816956
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

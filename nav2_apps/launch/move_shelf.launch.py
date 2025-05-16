@@ -21,7 +21,7 @@ def generate_launch_description():
         package = 'nav2_apps',
         name = 'move_shelf_to_ship',
         executable = 'move_shelf_to_ship',
-        parameters = [{'use_sim_time':False},
+        parameters = [{'use_sim_time':True},
                         spots_config],
         output = 'screen',
     )
