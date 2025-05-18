@@ -470,21 +470,21 @@ def main(args=None):
     action_client = MoveShelfToShip()
 
     # Approach #1 to find initial position
-    action_client.find_spots('init_pos')
-    action_client.set_init_pose()
-    action_client.wait_for_amcl_localization()
+    #action_client.find_spots('init_pos')
+    #action_client.set_init_pose()
+    #action_client.wait_for_amcl_localization()
 
     # Approach #2 to find initial position
 
-    #if action_client.reinitialize_global_localization():
-    #    while not action_client.wait_for_amcl_localization():
-    #        action_client.rotate_robot(angular_velocity=0.5)
-    #        action_client.rotate_robot(angular_velocity=-0.5)
-    #        action_client.wait_for_amcl_localization()
-    #        action_client.move_robot(linear_velocity=0.5)
-    #        action_client.move_robot(linear_velocity=-0.5)
-    #        action_client.rotate_robot(angular_velocity=-0.5)
-    #        action_client.rotate_robot(angular_velocity=0.5)
+    if action_client.reinitialize_global_localization():
+        while not action_client.wait_for_amcl_localization():
+            action_client.rotate_robot(angular_velocity=0.5)
+            action_client.rotate_robot(angular_velocity=-0.5)
+            action_client.wait_for_amcl_localization()
+            action_client.move_robot(linear_velocity=0.5)
+            action_client.move_robot(linear_velocity=-0.5)
+            action_client.rotate_robot(angular_velocity=-0.5)
+            action_client.rotate_robot(angular_velocity=0.5)
     
     action_client.find_spots('turn_pt')
     action_client.send_goal()
