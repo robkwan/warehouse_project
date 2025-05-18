@@ -51,15 +51,16 @@ class MoveShelfToShip(Node):
         # Hardcoded spot parameters (replaces spot-list.yaml)
         self.spot_params = {
             'init_pos': {
-                'x': 0.0, 'y': 0.0, 'z': 0.0,
+                #'x': 0.0, 'y': 0.0, 'z': 0.0,
+                'x': -3.0, 'y': 0.0, 'z': 0.0,
                 'ox': 0.0, 'oy': 0.0, 'oz': 0.0, 'ow': 1.0
             },
             'turn_pt': {
-                'x': 5.8, 'y': -0.0, 'z': 0.0,
+                'x': -3.0, 'y': 4.2, 'z': 0.0,
                 'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
             },
             'ship_pt': {
-                'x': 2.1, 'y': 0.0, 'z': 0.0,
+                'x': -3.0, 'y': 1.6, 'z': 0.0,
                 'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
             }
         }
@@ -470,21 +471,21 @@ def main(args=None):
     action_client = MoveShelfToShip()
 
     # Approach #1 to find initial position
-    #action_client.find_spots('init_pos')
-    #action_client.set_init_pose()
-    #action_client.wait_for_amcl_localization()
+    action_client.find_spots('init_pos')
+    action_client.set_init_pose()
+    action_client.wait_for_amcl_localization()
 
     # Approach #2 to find initial position
 
-    if action_client.reinitialize_global_localization():
-        while not action_client.wait_for_amcl_localization():
-            action_client.rotate_robot(angular_velocity=0.5)
-            action_client.rotate_robot(angular_velocity=-0.5)
-            action_client.wait_for_amcl_localization()
-            action_client.move_robot(linear_velocity=0.5)
-            action_client.move_robot(linear_velocity=-0.5)
-            action_client.rotate_robot(angular_velocity=-0.5)
-            action_client.rotate_robot(angular_velocity=0.5)
+    #if action_client.reinitialize_global_localization():
+    #    while not action_client.wait_for_amcl_localization():
+    #        action_client.rotate_robot(angular_velocity=0.5)
+    #        action_client.rotate_robot(angular_velocity=-0.5)
+    #        action_client.wait_for_amcl_localization()
+    #        action_client.move_robot(linear_velocity=0.5)
+    #        action_client.move_robot(linear_velocity=-0.5)
+    #        action_client.rotate_robot(angular_velocity=-0.5)
+    #        action_client.rotate_robot(angular_velocity=0.5)
     
     action_client.find_spots('turn_pt')
     action_client.send_goal()

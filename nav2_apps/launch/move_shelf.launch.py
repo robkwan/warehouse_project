@@ -11,7 +11,7 @@ def generate_launch_description():
     # Declare use_sim_time launch arg
     declare_use_sim_time = DeclareLaunchArgument(
         'use_sim_time',
-        default_value='true',
+        default_value='false',
         description='Use simulation time if true'
     )
 
@@ -21,7 +21,8 @@ def generate_launch_description():
         package='attach_shelf',
         executable='approach_service_server',
         name='approach_service_server',
-        output='screen'
+        output='screen',
+        parameters = [{'use_sim_time':use_sim_time}]
     )
 
     move_shelf_node = Node(
@@ -39,6 +40,6 @@ def generate_launch_description():
 
         attach_shelf_node,
 
-        move_shelf_node
+        #move_shelf_node
 
     ])

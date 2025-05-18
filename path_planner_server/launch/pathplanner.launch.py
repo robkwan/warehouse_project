@@ -12,7 +12,8 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
-    rviz_config_dir = os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'pathplanning.rviz')
+    rviz_config_dir_sim = os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'pathplanning.rviz')
+    rviz_config_dir_real = os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'pathplanning_real.rviz')
 
     # Declare use_sim_time launch arg
     declare_use_sim_time = DeclareLaunchArgument(
@@ -24,7 +25,8 @@ def generate_launch_description():
     # File selection logic
     config_dir = os.path.join(get_package_share_directory('path_planner_server'), 'config')
 
-    filters_yaml = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters.yaml')
+    filters_yaml_sim = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters_sim.yaml')
+    filters_yaml_read = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters_real.yaml')
 
     # Conditional planner server nodes
     planner_server_node_sim = Node(
@@ -102,13 +104,24 @@ def generate_launch_description():
             condition=UnlessCondition(use_sim_time)
         )
 
-    filter_mask_server_node = Node(
+    filter_mask_server_node_sim = Node(
             package='nav2_map_server',
             executable='map_server',
             name='filter_mask_server',
             output='screen',
             emulate_tty=True,
-            parameters=[filters_yaml]
+            parameters=[filters_yaml_sim],
+            condition=IfCondition(use_sim_time)
+        )
+
+    filter_mask_server_node_real = Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='filter_mask_server',
+            output='screen',
+            emulate_tty=True,
+            parameters=[filters_yaml_real],
+            condition=UnlessCondition(use_sim_time)
         )
 
     costmap_filter_info_server_node = Node(
@@ -135,20 +148,35 @@ def generate_launch_description():
         package='attach_shelf',
         executable='approach_service_server',
         name='approach_service_server',
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}]
     )
 
-
     delay_duration = 3.0  # 3 seconds delay
-    delay_action2 = TimerAction(
+    delay_action2_sim = TimerAction(
         period=delay_duration,
         actions=[Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             output='screen',
-            arguments=['-d', rviz_config_dir],
-            parameters=[{'use_sim_time': use_sim_time}])]
+            arguments=['-d', rviz_config_dir_sim],
+            parameters=[{'use_sim_time': use_sim_time}],
+            condition=IfCondition(use_sim_time)
+        )]
+    )
+
+    delay_action2_real = TimerAction(
+        period=delay_duration,
+        actions=[Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen',
+            arguments=['-d', rviz_config_dir_real],
+            parameters=[{'use_sim_time': use_sim_time}],
+            condition=UnlessCondition(use_sim_time)
+        )]
     )
 
     # create and return launch description object
@@ -163,10 +191,12 @@ def generate_launch_description():
              bt_navigator_node_real,
              recoveries_server_node_sim,
              recoveries_server_node_real,
-             filter_mask_server_node,
+             filter_mask_server_node_sim,
+             filter_mask_server_node_real,
              costmap_filter_info_server_node, 
              lifecycle_manager_node2,
-             attach_shelf_node,
-             delay_action2
+             #attach_shelf_node,
+             delay_action2_sim,
+             delay_action2_real
         ]
     )

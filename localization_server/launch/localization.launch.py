@@ -12,7 +12,8 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
-    rviz_config_dir = os.path.join(get_package_share_directory('localization_server'), 'rviz', 'localizer_rviz_config.rviz')
+    rviz_config_dir_sim = os.path.join(get_package_share_directory('localization_server'), 'rviz', 'localizer_rviz_config.rviz')
+    rviz_config_dir_real = os.path.join(get_package_share_directory('localization_server'), 'rviz', 'localizer_rviz_config_real.rviz')
 
     # Declare use_sim_time launch arg
     declare_use_sim_time = DeclareLaunchArgument(
@@ -74,15 +75,30 @@ def generate_launch_description():
                         {'node_names': ['map_server', 'amcl']}])    
 
     delay_duration = 3.0  # 3 seconds delay
-    delay_action = TimerAction(
+    delay_action_sim = TimerAction(
         period=delay_duration,
         actions=[Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             output='screen',
-            arguments=['-d', rviz_config_dir],
-            parameters=[{'use_sim_time': use_sim_time}])]
+            arguments=['-d', rviz_config_dir_sim],
+            parameters=[{'use_sim_time': use_sim_time}],
+            condition=IfCondition(use_sim_time)
+        )]
+    )
+
+    delay_action_real = TimerAction(
+        period=delay_duration,
+        actions=[Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen',
+            arguments=['-d', rviz_config_dir_real],
+            parameters=[{'use_sim_time': use_sim_time}],
+            condition=UnlessCondition(use_sim_time)
+        )]
     )
 
     # create and return launch description object
@@ -94,6 +110,7 @@ def generate_launch_description():
              amcl_node_sim,
              amcl_node_real,
              lifecycle_manager_node,
-             delay_action
+             delay_action_sim,
+             delay_action_real
         ]
     )

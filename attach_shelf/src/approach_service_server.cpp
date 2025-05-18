@@ -5,7 +5,7 @@
 #include "rclcpp/timer.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h" // For quaternion operations
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp" // For quaternion operations
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
@@ -25,6 +25,12 @@ public:
       : Node("approach_service_server"), tf_broadcaster_(this),
         tf_buffer_(this->get_clock()), tf_listener_(tf_buffer_),
         active_tf_(false) {
+
+    // this->declare_parameter<bool>("use_sim_time", true);
+
+    use_sim_time_ = this->get_parameter("use_sim_time").as_bool();
+    RCLCPP_INFO(this->get_logger(), "use_sim_time_: %d", use_sim_time_);
+
     // Create callback groups
     scan_group_ = this->create_callback_group(
         rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -39,8 +45,13 @@ public:
         scan_opts);
 
     // Publisher
-    cmd_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
-        "/diffbot_base_controller/cmd_vel_unstamped", 10);
+    if (use_sim_time_) {
+      cmd_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
+          "/diffbot_base_controller/cmd_vel_unstamped", 10);
+    } else {
+      cmd_pub_ =
+          this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    }
 
     // Timer for TF publishing
     tf_timer_ = this->create_wall_timer(
@@ -76,6 +87,7 @@ private:
   geometry_msgs::msg::TransformStamped cart_tf_;
   bool active_tf_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr elevator_pub_;
+  bool use_sim_time_;
 
   void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
     if (!active_tf_)
@@ -83,7 +95,8 @@ private:
 
     std::vector<int> leg_indices;
     for (size_t i = 0; i < msg->intensities.size(); ++i) {
-      if (msg->intensities[i] > 1000.0)
+      if (msg->intensities[i] > 1500.0) // Increase this intensity for real
+                                        // robot from 1000 to 1200 or 1500?!
         leg_indices.push_back(i);
     }
 
@@ -125,14 +138,14 @@ private:
       float mid_y = (y1 + y2) / 2.0f;
 
       // Log relevant information (optional)
-      // RCLCPP_INFO(this->get_logger(),
-      //            "Front Point (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
-      //            index1, range1, angle1, x1, y1);
-      // RCLCPP_INFO(this->get_logger(),
-      //            "Back Point  (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
-      //            index2, range2, angle2, x2, y2);
-      // RCLCPP_INFO(this->get_logger(), "Midpoint: (x=%.2f, y=%.2f)", mid_x,
-      //            mid_y);
+      RCLCPP_INFO(this->get_logger(),
+                  "Front Point (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
+                  index1, range1, angle1, x1, y1);
+      RCLCPP_INFO(this->get_logger(),
+                  "Back Point  (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
+                  index2, range2, angle2, x2, y2);
+      RCLCPP_INFO(this->get_logger(), "Midpoint: (x=%.2f, y=%.2f)", mid_x,
+                  mid_y);
 
       // Assign the calculated midpoint to your target variables
       x = mid_x;
@@ -193,7 +206,7 @@ private:
     // Check if cart_frame was valid
     if (cart_tf_.transform.translation.x == 0.0 &&
         cart_tf_.transform.translation.y == 0.0) {
-      RCLCPP_WARN(this->get_logger(),
+      RCLCPP_INFO(this->get_logger(),
                   "Not enough shelf legs detected. Failing service.");
       response->complete = false;
       active_tf_ = false;
@@ -206,7 +219,7 @@ private:
                                    tf2::TimePointZero);
         break;
       } catch (const tf2::TransformException &ex) {
-        RCLCPP_WARN(this->get_logger(), "Waiting for TF: %s", ex.what());
+        RCLCPP_INFO(this->get_logger(), "Waiting for TF: %s", ex.what());
         rclcpp::sleep_for(std::chrono::milliseconds(100));
       }
     }*/
@@ -224,11 +237,10 @@ private:
         float dy = tf.transform.translation.y;
         float dist = std::hypot(dx, dy);
 
-        // RCLCPP_INFO(this->get_logger(), "dx = %.2f, dy=%.2f, dist=%.2f", dx,
-        // dy,
-        //             dist);
+        RCLCPP_INFO(this->get_logger(), "dx = %.2f, dy=%.2f, dist=%.2f", dx, dy,
+                    dist);
 
-        if ((dist < 0.1)) {
+        if ((dist < 0.2)) { // loosen from 0.1 to 0.2 for real robot?!
           RCLCPP_INFO(this->get_logger(), "Reached cart_frame.");
           // move.linear.x = 0;
           // move.angular.z = 0;
