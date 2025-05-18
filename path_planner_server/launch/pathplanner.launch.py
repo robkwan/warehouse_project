@@ -26,7 +26,7 @@ def generate_launch_description():
     config_dir = os.path.join(get_package_share_directory('path_planner_server'), 'config')
 
     filters_yaml_sim = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters_sim.yaml')
-    filters_yaml_read = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters_real.yaml')
+    filters_yaml_real = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters_real.yaml')
 
     # Conditional planner server nodes
     planner_server_node_sim = Node(
@@ -124,14 +124,26 @@ def generate_launch_description():
             condition=UnlessCondition(use_sim_time)
         )
 
-    costmap_filter_info_server_node = Node(
+    costmap_filter_info_server_node_sim = Node(
             package='nav2_map_server',
             executable='costmap_filter_info_server',
             name='costmap_filter_info_server',
             output='screen',
             emulate_tty=True,
-            parameters=[filters_yaml]
+            parameters=[filters_yaml_sim],
+            condition=IfCondition(use_sim_time)
         )
+
+    costmap_filter_info_server_node_real = Node(
+            package='nav2_map_server',
+            executable='costmap_filter_info_server',
+            name='costmap_filter_info_server',
+            output='screen',
+            emulate_tty=True,
+            parameters=[filters_yaml_real],
+            condition=UnlessCondition(use_sim_time)
+        )
+
 
     lifecycle_manager_node2 = Node(
             package='nav2_lifecycle_manager',
@@ -193,7 +205,8 @@ def generate_launch_description():
              recoveries_server_node_real,
              filter_mask_server_node_sim,
              filter_mask_server_node_real,
-             costmap_filter_info_server_node, 
+             costmap_filter_info_server_node_sim, 
+             costmap_filter_info_server_node_real, 
              lifecycle_manager_node2,
              #attach_shelf_node,
              delay_action2_sim,
