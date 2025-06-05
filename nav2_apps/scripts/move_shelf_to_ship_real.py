@@ -56,7 +56,8 @@ class MoveShelfToShip(Node):
             },
             'turn_pt': {
                 'x': -3.0, 'y': 4.2, 'z': 0.0,
-                'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
+                #'ox': 0.0, 'oy': 0.0, 'oz': -0.707, 'ow': 0.707
+                'ox': 0.0, 'oy': 0.0, 'oz': 0.0, 'ow': 1.0
             },
             'ship_pt': {
                 'x': -3.0, 'y': 1.6, 'z': 0.0,
@@ -409,7 +410,9 @@ class MoveShelfToShip(Node):
         if success:
             self.footprint_updated = True
             self.move_robot(linear_velocity=-0.21)
+            time.sleep(2)
             self.rotate_robot(angular_velocity=-0.393)
+            time.sleep(2)
         else:
             self.get_logger().info("Handle footprint update Failed.")
 
@@ -451,9 +454,9 @@ class MoveShelfToShip(Node):
     def attach_shelf(self):
         self.get_logger().info("attach_shelf() In.")
         
-        if not self.goal_reached_:
-            self.get_logger().info("attach_shelf called before goal was reached!")
-            return
+#        if not self.goal_reached_:
+#            self.get_logger().info("attach_shelf called before goal was reached!")
+#            return
 
         while not self.approach_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting for /approach_shelf service...")
@@ -476,26 +479,33 @@ def main(args=None):
 
     # Approach #2 to find initial position
 
-    if action_client.reinitialize_global_localization():
-        while not action_client.wait_for_amcl_localization():
-            action_client.rotate_robot(angular_velocity=0.5)
-            action_client.rotate_robot(angular_velocity=-0.5)
-            action_client.wait_for_amcl_localization()
-            action_client.move_robot(linear_velocity=0.3)
-            action_client.move_robot(linear_velocity=-0.3)
-            action_client.rotate_robot(angular_velocity=-0.5)
-            action_client.rotate_robot(angular_velocity=0.5)
+    #if action_client.reinitialize_global_localization():
+    #    while not action_client.wait_for_amcl_localization():
+    #        action_client.rotate_robot(angular_velocity=0.5)
+    #        action_client.rotate_robot(angular_velocity=-0.5)
+    #        action_client.wait_for_amcl_localization()
+    #        action_client.move_robot(linear_velocity=0.3)
+    #        action_client.move_robot(linear_velocity=-0.3)
+    #        action_client.rotate_robot(angular_velocity=-0.5)
+    #        action_client.rotate_robot(angular_velocity=0.5)
     
-    action_client.find_spots('turn_pt')
-    action_client.send_goal()
+    #action_client.find_spots('turn_pt')
+    #action_client.send_goal()
 
-    while rclpy.ok() and not action_client.goal_reached_:
-        # Process ROS events to update goal status
-        rclpy.spin_once(action_client, timeout_sec=0.1)
+    #while rclpy.ok() and not action_client.goal_reached_:
+    # Process ROS events to update goal status
+    #    rclpy.spin_once(action_client, timeout_sec=0.1)
 
-    action_client.attach_shelf()
+    ##time.sleep(2.0)
 
-    action_client.handle_footprint_update()
+    ##action_client.rotate_robot(angular_velocity=-0.405)
+    #time.sleep(2.0)
+
+    #action_client.attach_shelf()
+    #time.sleep(2.0)  # Ensure message is sent
+
+    #action_client.handle_footprint_update()
+    #time.sleep(2.0)  # Ensure message is sent
 
     action_client.find_spots('ship_pt')
     action_client.send_goal()
@@ -504,7 +514,11 @@ def main(args=None):
         # Process ROS events to update goal status
         rclpy.spin_once(action_client, timeout_sec=0.1)
 
-    action_client.handle_cart_dropoff()
+    action_client.rotate_robot(angular_velocity=0.404)
+    time.sleep(2.0)  # Ensure message is sent
+
+    #action_client.handle_cart_dropoff()
+    time.sleep(2.0)  # Ensure message is sent
 
     action_client.find_spots('init_pos')
     action_client.send_goal()

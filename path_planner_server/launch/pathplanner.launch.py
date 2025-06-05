@@ -209,7 +209,7 @@ def generate_launch_description():
              costmap_filter_info_server_node_real, 
              lifecycle_manager_node2,
              #attach_shelf_node,
-             delay_action2_sim,
-             delay_action2_real
+             #delay_action2_sim,
+             #delay_action2_real
         ]
     )

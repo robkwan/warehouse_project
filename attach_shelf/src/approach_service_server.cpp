@@ -94,9 +94,16 @@ private:
       return;
 
     std::vector<int> leg_indices;
+
+    float intensity_threshold = 1000.0;
+    if (!use_sim_time_) {
+      intensity_threshold = 1500.0; // higher for real robot?!
+    }
+
     for (size_t i = 0; i < msg->intensities.size(); ++i) {
-      if (msg->intensities[i] > 1500.0) // Increase this intensity for real
-                                        // robot from 1000 to 1200 or 1500?!
+      if (msg->intensities[i] >
+          intensity_threshold) // Increase this intensity for real
+                               // robot from 1000 to 1200 or 1500?!
         leg_indices.push_back(i);
     }
 
@@ -138,14 +145,14 @@ private:
       float mid_y = (y1 + y2) / 2.0f;
 
       // Log relevant information (optional)
-      RCLCPP_INFO(this->get_logger(),
-                  "Front Point (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
-                  index1, range1, angle1, x1, y1);
-      RCLCPP_INFO(this->get_logger(),
-                  "Back Point  (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
-                  index2, range2, angle2, x2, y2);
-      RCLCPP_INFO(this->get_logger(), "Midpoint: (x=%.2f, y=%.2f)", mid_x,
-                  mid_y);
+      // RCLCPP_INFO(this->get_logger(),
+      //            "Front Point (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
+      //            index1, range1, angle1, x1, y1);
+      // RCLCPP_INFO(this->get_logger(),
+      //            "Back Point  (Idx %d): R=%.2f, A=%.2f, (x=%.2f, y=%.2f)",
+      //            index2, range2, angle2, x2, y2);
+      // RCLCPP_INFO(this->get_logger(), "Midpoint: (x=%.2f, y=%.2f)", mid_x,
+      //             mid_y);
 
       // Assign the calculated midpoint to your target variables
       x = mid_x;
@@ -240,12 +247,15 @@ private:
         RCLCPP_INFO(this->get_logger(), "dx = %.2f, dy=%.2f, dist=%.2f", dx, dy,
                     dist);
 
-        if ((dist < 0.2)) { // loosen from 0.1 to 0.2 for real robot?!
+        if ((dist < 0.1)) { // loosen from 0.1 to 0.2 for real robot?!
           RCLCPP_INFO(this->get_logger(), "Reached cart_frame.");
           // move.linear.x = 0;
           // move.angular.z = 0;
           // cmd_pub_->publish(move);
 
+          break;
+        } else if ((dy == 0.0) && (!use_sim_time_)) {
+          RCLCPP_INFO(this->get_logger(), "Reached cart_frame.");
           break;
         }
 
@@ -334,7 +344,8 @@ private:
     RCLCPP_INFO(this->get_logger(), "Final 30cm forward push...");
 
     auto start_time = this->now();
-    rclcpp::Duration desired_duration = 9s; // 8 seconds
+    // rclcpp::Duration desired_duration = 9s; // 8 seconds
+    rclcpp::Duration desired_duration = 7s; // 8 seconds
 
     move.linear.x = 0.1;
     move.angular.z = 0.0;
@@ -353,6 +364,8 @@ private:
     elevator_pub_->publish(msg);
     RCLCPP_INFO(this->get_logger(), "Published 'up' to /elevator_up");
 
+    rclcpp::sleep_for(
+        std::chrono::milliseconds(1000)); // Small sleep to avoid tight looping
     response->complete = true;
     RCLCPP_INFO(this->get_logger(), "Final approach complete.");
   }
